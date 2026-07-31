@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skin Lesion Diagnosis</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+  .card {
+    background: #fff;
+    max-width: 480px;
+    width: 100%;
+    margin: 40px 20px;
+    padding: 28px;
+    border-radius: 14px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  h1 { font-size: 20px; color: #1f2937; margin-bottom: 4px; }
+  p.subtitle { color: #6b7280; font-size: 13px; margin-top: 0; margin-bottom: 20px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { font-size: 12px; color: #6b7280; display:block; margin-bottom: 4px; }
+  .field input[type=text], .field input[type=number], .field select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .row2 { display: flex; gap: 10px; }
+  .row2 .field { flex: 1; }
+
+  #dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 22px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s;
+    color: #6b7280;
+    margin-bottom: 14px;
+  }
+  #dropzone.dragover { border-color: #3b82f6; background: #eff6ff; }
+  #preview { max-width: 100%; margin-bottom: 14px; border-radius: 10px; display: none; }
+  input[type=file] { display: none; }
+
+  button {
+    width: 100%;
+    padding: 12px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  button:disabled { background: #93c5fd; cursor: not-allowed; }
+  button:hover:not(:disabled) { background: #1d4ed8; }
+
+  #result { margin-top: 20px; display: none; }
+  .diag-box { padding: 14px; border-radius: 10px; margin-bottom: 12px; }
+  .risk-Critical { background: #fee2e2; border: 1px solid #fca5a5; }
+  .risk-High     { background: #ffedd5; border: 1px solid #fdba74; }
+  .risk-Moderate { background: #fef9c3; border: 1px solid #fde047; }
+  .risk-Low      { background: #dcfce7; border: 1px solid #86efac; }
+  .diag-title { font-size: 15px; font-weight: 600; margin: 0 0 4px 0; }
+  .diag-risk  { font-size: 13px; margin: 0; color: #374151; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 6px 4px; border-bottom: 1px solid #f1f5f9; }
+  .bar-bg { background: #e5e7eb; border-radius: 4px; height: 8px; width: 100%; }
+  .bar-fill { background: #3b82f6; border-radius: 4px; height: 8px; }
+
+  #error {
+    color: #b91c1c;
+    background: #fee2e2;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 14px;
+    font-size: 13px;
+    display: none;
+  }
+  #apiUrlRow { margin-bottom: 18px; }
+  .loader { display: none; text-align: center; margin-top: 14px; color: #6b7280; font-size: 13px; }
+  .hint { font-size: 11px; color: #9ca3af; margin-top: -8px; margin-bottom: 14px; }
+
+  .symptoms-section {
+    border-top: 1px solid #f1f5f9;
+    margin-top: 4px;
+    padding-top: 16px;
+    margin-bottom: 8px;
+  }
+  .symptoms-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 2px;
+  }
+  .symptoms-desc {
+    font-size: 11px;
+    color: #9ca3af;
+    margin-bottom: 10px;
+  }
+  .symptom-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+  }
+  .symptom-item input { margin-top: 2px; }
+  .symptom-item .sym-sub { display: block; font-size: 11px; color: #9ca3af; }
+
+  .warning-banner {
+    display: none;
+    padding: 14px;
+    border-radius: 10px;
+    margin-top: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .warning-high {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    color: #7f1d1d;
+  }
+  .warning-medium {
+    background: #fef9c3;
+    border: 1px solid #fde047;
+    color: #713f12;
+  }
+  .warning-low {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #14532d;
+  }
+</style>
+
+</head>
+<body>
+
+<div class="card">
+  <h1>Skin Lesion Diagnosis</h1>
+<p class="subtitle">A picture of the skin lesion + patient data gives you a more accurate diagnosis than the multimodal model.</p>
+
+  <div class="field" id="apiUrlRow">
+    <label for="apiUrl">API URL (رابط السيرفر / ngrok)</label>
+    <input type="text" id="apiUrl" placeholder="https://xxxx.ngrok-free.app/predict" />
+  </div>
+
+  <div id="dropzone">
+    <p> Drag the pest image here or tap to select </p>
+    <input type="file" id="fileInput" accept="image/*" />
+  </div>
+  <img id="preview" />
+
+  <div class="row2">
+    <div class="field">
+      <label for="ageInput">age</label>
+      <input type="number" id="ageInput" min="0" max="120" placeholder="example: 45" />
+    </div>
+    <div class="field">
+      <label for="sexInput">sex</label>
+      <select id="sexInput">
+        <option value="male">male</option>
+        <option value="female">female</option>
+        <option value="unknown">Unspecified </option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="locInput">Location of injury on the body</label>
+    <select id="locInput">
+      <option value=""> Loading options from the server... </option>
+    </select>
+  </div>
+  <p class="hint"> These options are automatically loaded from the API to match exactly what the model was trained on.</p>
+
+  <div class="symptoms-section">
+    <p class="symptoms-title"> Symptoms you are experiencing (optional)</p>
+<p class="symptoms-desc">This is based on the well-known medical ABCDE framework for assessing risk signs, and is completely separate from the model — it appears as an additional alert alongside the model's score, not as part of its training.</p>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_asymmetry">
+      <span> The shape is asymmetrical <span class="sym-sub">The text of the affliction is not similar to the second text</span></span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_border">
+      <span> Irregular edges (Border) <span class="sym-sub">Serrated or indistinct edges </span></span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_color">
+      <span> Multicolor(Color)<span class="sym-sub">More than one color in the same pest</span></span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_diameter">
+      <span>Diameter greater than 6 mm (Diameter)<span class="sym-sub">About the size of a pencil</span></span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_evolving">
+      <span>Changes over time (Evolving)<span class="sym-sub">in size, shape, or color overweeks/months </span></span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_bleeding">
+      <span> Bleeding or leaking fluids </span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_itching">
+      <span> Persistent itching</span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_pain">
+      <span>Pain upon touch</span>
+    </label>
+    <label class="symptom-item">
+      <input type="checkbox" class="symptom-cb" id="sym_rapid">
+      <span>Appeared or grew rapidly recently</span>
+    </label>
+  </div>
+
+  <button id="submitBtn" disabled>Get Diagnosis</button>
+
+  <div class="loader" id="loader"> Analyzing in progress...</div>
+  <div id="error"></div>
+
+  <div id="result">
+    <div id="diagBox" class="diag-box">
+      <p class="diag-title" id="diagTitle"></p>
+      <p class="diag-risk" id="diagRisk"></p>
+    </div>
+    <table id="confTable"></table>
+    <div id="symptomWarning" class="warning-banner"></div>
+  </div>
+</div>
+
+<script>
+const dropzone    = document.getElementById('dropzone');
+const fileInput   = document.getElementById('fileInput');
+const preview     = document.getElementById('preview');
+const submitBtn   = document.getElementById('submitBtn');
+const resultBox   = document.getElementById('result');
+const errorBox    = document.getElementById('error');
+const loader      = document.getElementById('loader');
+const apiUrlInput = document.getElementById('apiUrl');
+const ageInput    = document.getElementById('ageInput');
+const sexInput    = document.getElementById('sexInput');
+const locInput    = document.getElementById('locInput');
+
+let selectedFile = null;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = (e) => { preview.src = e.target.result; preview.style.display = 'block'; };
+  reader.readAsDataURL(file);
+  checkReady();
+  resultBox.style.display = 'none';
+  errorBox.style.display = 'none';
+}
+
+function checkReady() {
+  submitBtn.disabled = !(selectedFile && ageInput.value && sexInput.value && locInput.value);
+}
+ageInput.addEventListener('input', checkReady);
+sexInput.addEventListener('change', checkReady);
+locInput.addEventListener('change', checkReady);
+
+// Load localization options from the API root endpoint once a URL is typed
+let lastLoadedBase = null;
+apiUrlInput.addEventListener('change', loadLocalizationOptions);
+apiUrlInput.addEventListener('blur', loadLocalizationOptions);
+
+async function loadLocalizationOptions() {
+  const predictUrl = apiUrlInput.value.trim();
+  if (!predictUrl) return;
+  const baseUrl = predictUrl.replace(/\/predict\/?$/, '');
+  if (baseUrl === lastLoadedBase) return;
+
+  try {
+    const res = await fetch(baseUrl + '/', {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
+    const data = await res.json();
+    if (data.localization_options) {
+      locInput.innerHTML = '';
+      data.localization_options.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt;
+        locInput.appendChild(o);
+      });
+      lastLoadedBase = baseUrl;
+      checkReady();
+    }
+  } catch (err) {
+    locInput.innerHTML = '<option value="">Options could not be loaded - check the API link</option>';
+  }
+}
+
+const riskColors = {
+  Critical: 'risk-Critical', High: 'risk-High',
+  Moderate: 'risk-Moderate', Low: 'risk-Low'
+};
+
+submitBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  const apiUrl = apiUrlInput.value.trim();
+  if (!apiUrl) { showError('Please insert the first API link.'); return; }
+
+  errorBox.style.display = 'none';
+  resultBox.style.display = 'none';
+  loader.style.display = 'block';
+  submitBtn.disabled = true;
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  formData.append('age', ageInput.value);
+  formData.append('sex', sexInput.value);
+  formData.append('localization', locInput.value);
+
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'ngrok-skip-browser-warning': 'true' },
+      body: formData
+    });
+    if (!res.ok) throw new Error('Server returned status ' + res.status);
+    const data = await res.json();
+    renderResult(data);
+  } catch (err) {
+    showError('An error occurred connecting to the server:'+ err.message);
+  } finally {
+    loader.style.display = 'none';
+    submitBtn.disabled = false;
+  }
+});
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.style.display = 'block';
+}
+
+function renderResult(data) {
+  const diagBox   = document.getElementById('diagBox');
+  const diagTitle = document.getElementById('diagTitle');
+  const diagRisk  = document.getElementById('diagRisk');
+  const confTable = document.getElementById('confTable');
+
+  diagBox.className = 'diag-box ' + (riskColors[data.risk_level] || '');
+  diagTitle.textContent = 'Diagnosis: ' + data.diagnosis;
+  diagRisk.textContent  = 'Risk level (from the model):' + data.risk_level;
+
+  confTable.innerHTML = '';
+  const sorted = Object.entries(data.confidence).sort((a, b) => b[1] - a[1]);
+  for (const [cls, val] of sorted) {
+    const pct = Math.round(val * 100);
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td style="width:60px">${cls}</td>
+      <td><div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+      <td style="width:40px; text-align:left">${pct}%</td>
+    `;
+    confTable.appendChild(row);
+  }
+  resultBox.style.display = 'block';
+
+  renderSymptomWarning();
+}
+
+// -----------------------------------------------------------------------
+// Symptom-based clinical warning (ABCDE rule) - COMPLETELY SEPARATE from
+// the trained model. This is a simple rule-based score, not a prediction.
+// It is shown alongside the model's output, never merged into it.
+// -----------------------------------------------------------------------
+function renderSymptomWarning() {
+  const symptomIds = [
+    'sym_asymmetry', 'sym_border', 'sym_color', 'sym_diameter', 'sym_evolving',
+    'sym_bleeding', 'sym_itching', 'sym_pain', 'sym_rapid'
+  ];
+
+  const checked = symptomIds.filter(id => document.getElementById(id).checked);
+  const warningBox = document.getElementById('symptomWarning');
+
+  if (checked.length === 0) {
+    warningBox.style.display = 'none';
+    return;
+  }
+
+  // ABCDE core signs (asymmetry, border, color, diameter, evolving) carry
+  // more clinical weight than the general symptoms (bleeding/itch/pain/rapid).
+  const abcdeIds = ['sym_asymmetry', 'sym_border', 'sym_color', 'sym_diameter', 'sym_evolving'];
+  const abcdeCount = checked.filter(id => abcdeIds.includes(id)).length;
+  const otherCount = checked.length - abcdeCount;
+  const score = abcdeCount * 2 + otherCount;
+
+  let level, cls, message;
+  if (score >= 5) {
+    level = 'high';
+    cls = 'warning-high';
+   message = 'The symptoms you identified match several warning signs from the ABCDE medical assessment for melanoma.'
+
++ 'This is a symptom-based alert only (not from the model), and you are advised to see a dermatologist as soon as possible.'
+
++ 'Even if the model above showed a low-risk result.'
+  } else if (score >= 2) {
+    level = 'medium';
+    cls = 'warning-medium';
+message = 'There are some signs that need to be monitored. It is recommended to consult a dermatologist for reassurance, especially if these symptoms are new or changing.'  } else {
+    level = 'low';
+    cls = 'warning-low';
+message = 'Specific symptoms are limited, but any noticeable change in any skin lesion warrants follow-up with a doctor.'  }
+
+  warningBox.className = 'warning-banner ' + cls;
+warningBox.innerHTML = `<strong>Symptom Alert (Level ${level}):</strong><br>${message}`;  warningBox.style.display = 'block';
+}
+</script>
+
+</body>
+</html>
